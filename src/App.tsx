@@ -490,12 +490,6 @@ function LoginModal({ onLogin, onClose }: { onLogin: (user: User) => void; onClo
           </div>
           {error && <p className="text-xs text-red-500">{error}</p>}
 
-          <div className="text-xs text-gray-400 bg-gray-50 border border-gray-200 rounded-lg p-2 space-y-0.5">
-            <p className="font-medium text-gray-500">測試帳號</p>
-            <p>管理員：<span className="font-mono">admin / admin123</span></p>
-            <p>排班員：<span className="font-mono">staff / staff123</span></p>
-          </div>
-
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">取消</button>
             <button type="submit" className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">登入</button>
