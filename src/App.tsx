@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { Machine, Personnel, Role, ScheduleRow, SkillLevel, TabType, User } from './types';
+import type { Machine, OvertimeRow, Personnel, Role, ScheduleRow, SkillLevel, TabType, User } from './types';
 import * as api from './api';
 import {
   Users, CalendarDays, AlertTriangle,
   Brain, Plus, Trash2, Edit3, Check, X, ChevronDown, ChevronUp,
   ClockAlert, Shuffle, UserX, Factory, Settings2, UserPlus,
-  LogIn, LogOut, Shield, Lock, Eye
+  LogIn, LogOut, Shield, Lock, Eye, Clock, Copy
 } from 'lucide-react';
 import './index.css';
 
@@ -530,6 +530,12 @@ export default function App() {
   const [editingRowMachine, setEditingRowMachine] = useState<string | null>(null);
   const [editingRowData, setEditingRowData] = useState<Partial<ScheduleRow>>({});
 
+  // ── Overtime state ──
+  const [overtimeRows, setOvertimeRows] = useState<OvertimeRow[]>([]);
+  const [editingOtMachine, setEditingOtMachine] = useState<string | null>(null);
+  const [editingOtData, setEditingOtData] = useState<Partial<OvertimeRow>>({});
+  const [showOtMachinePicker, setShowOtMachinePicker] = useState(false);
+
   // ── Data fetching ──
   const refreshMachines = useCallback(async () => {
     const data = await api.fetchMachines();
@@ -552,7 +558,7 @@ export default function App() {
     setRows(schedData.map(r => ({
       machineId: r.machineId,
       operatorId: r.operatorId ?? '',
-      collaboratorId: r.collaboratorId ?? '',
+      collaboratorIds: r.collaboratorIds ?? [],
       productionItems: r.productionItems,
       assignedDate: r.assignedDate,
       daysAtStation: r.daysAtStation,
@@ -560,11 +566,21 @@ export default function App() {
     setLeaveIds(leaveData);
   }, []);
 
+  const refreshOvertime = useCallback(async (date: string) => {
+    const data = await api.fetchOvertime(date);
+    setOvertimeRows(data.map(r => ({
+      machineId: r.machineId,
+      operatorId: r.operatorId ?? '',
+      collaboratorIds: r.collaboratorIds ?? [],
+      productionItems: r.productionItems,
+    })));
+  }, []);
+
   // Initial load
   useEffect(() => {
     (async () => {
       setLoading(true);
-      await Promise.all([refreshMachines(), refreshPersonnel(), refreshSchedule(scheduleDate)]);
+      await Promise.all([refreshMachines(), refreshPersonnel(), refreshSchedule(scheduleDate), refreshOvertime(scheduleDate)]);
       setLoading(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -573,7 +589,8 @@ export default function App() {
   // Reload schedule when date changes
   useEffect(() => {
     refreshSchedule(scheduleDate);
-  }, [scheduleDate, refreshSchedule]);
+    refreshOvertime(scheduleDate);
+  }, [scheduleDate, refreshSchedule, refreshOvertime]);
 
   const handleLogout = () => {
     setUser(null);
@@ -589,7 +606,7 @@ export default function App() {
   const alertRows = rows.filter(r => r.daysAtStation >= ALERT_DAYS);
   const onLeaveList = personnel.filter(p => leaveSet.has(p.id));
   const conflictRows = rows.filter(r =>
-    leaveSet.has(r.operatorId) || (r.collaboratorId && leaveSet.has(r.collaboratorId))
+    leaveSet.has(r.operatorId) || r.collaboratorIds.some(id => leaveSet.has(id))
   );
 
   const handleRunAI = () => {
@@ -604,7 +621,7 @@ export default function App() {
       date: scheduleDate,
       machineId: s.machineId,
       operatorId: s.suggestedOperatorId,
-      collaboratorId: row.collaboratorId,
+      collaboratorIds: row.collaboratorIds,
       productionItems: row.productionItems,
       assignedDate: scheduleDate,
     });
@@ -648,7 +665,7 @@ export default function App() {
       date: scheduleDate,
       machineId: merged.machineId,
       operatorId: merged.operatorId,
-      collaboratorId: merged.collaboratorId,
+      collaboratorIds: merged.collaboratorIds,
       productionItems: merged.productionItems,
       assignedDate: merged.assignedDate,
     });
@@ -664,7 +681,7 @@ export default function App() {
         return {
           machineId: id,
           operatorId: existing.operatorId || undefined,
-          collaboratorId: existing.collaboratorId || undefined,
+          collaboratorIds: existing.collaboratorIds.length > 0 ? existing.collaboratorIds : undefined,
           productionItems: existing.productionItems || undefined,
           assignedDate: existing.assignedDate || undefined,
         };
@@ -738,6 +755,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-6 flex gap-0">
           {[
             { key: 'schedule', label: '每日排班', icon: <CalendarDays size={14} />, requireAuth: false },
+            { key: 'overtime', label: '加班排班', icon: <Clock size={14} />, requireAuth: false },
             { key: 'personnel', label: '人員資料庫', icon: <Users size={14} />, requireAuth: true },
             { key: 'machine', label: '機台資料庫', icon: <Settings2 size={14} />, requireAuth: true },
           ].filter(t => !t.requireAuth || canAccessNonScheduleTab).map(t => (
@@ -832,7 +850,7 @@ export default function App() {
                     <span className="font-semibold">注意：</span>
                     {conflictRows.map(r => {
                       const m = machineMap.get(r.machineId);
-                      const conflictPeople = [r.operatorId, r.collaboratorId]
+                      const conflictPeople = [r.operatorId, ...r.collaboratorIds]
                         .filter(id => id && leaveSet.has(id))
                         .map(id => personMap.get(id!)?.name)
                         .filter(Boolean).join('、');
@@ -892,10 +910,9 @@ export default function App() {
                       const isEditing = editingRowMachine === row.machineId;
                       const isAlert = row.daysAtStation >= ALERT_DAYS;
                       const op = personMap.get(row.operatorId);
-                      const co = personMap.get(row.collaboratorId);
                       const m = machineMap.get(row.machineId);
                       const opOnLeave = row.operatorId && leaveSet.has(row.operatorId);
-                      const coOnLeave = row.collaboratorId && leaveSet.has(row.collaboratorId);
+                      const coOnLeave = row.collaboratorIds.some(id => leaveSet.has(id));
                       const hasConflict = opOnLeave || coOnLeave;
                       const availablePersonnel = personnel.filter(p => !leaveSet.has(p.id));
 
@@ -939,23 +956,40 @@ export default function App() {
 
                           <td className="px-4 py-3">
                             {isEditing ? (
-                              <select value={editingRowData.collaboratorId ?? ''}
-                                onChange={e => setEditingRowData(p => ({ ...p, collaboratorId: e.target.value }))}
-                                className="w-full border border-blue-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white">
-                                <option value="">— 無 —</option>
-                                {availablePersonnel.map(p => (
-                                  <option key={p.id} value={p.id}>{p.id} {p.name}</option>
-                                ))}
-                              </select>
+                              <div className="space-y-1 max-h-32 overflow-y-auto">
+                                {availablePersonnel.map(p => {
+                                  const editIds: string[] = (editingRowData.collaboratorIds as string[] | undefined) ?? [];
+                                  const checked = editIds.includes(p.id);
+                                  return (
+                                    <label key={p.id} className="flex items-center gap-1.5 text-sm cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5">
+                                      <input type="checkbox" checked={checked}
+                                        onChange={() => {
+                                          setEditingRowData(prev => {
+                                            const cur: string[] = (prev.collaboratorIds as string[] | undefined) ?? [];
+                                            const next = checked ? cur.filter(x => x !== p.id) : [...cur, p.id];
+                                            return { ...prev, collaboratorIds: next };
+                                          });
+                                        }}
+                                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-400" />
+                                      <span className="text-xs font-mono text-gray-400">{p.id}</span>
+                                      <span>{p.name}</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
                             ) : (
-                              <div className="flex items-center gap-1.5">
-                                {row.collaboratorId ? (
-                                  <>
-                                    <span className="text-xs font-mono text-gray-400 bg-gray-100 rounded px-1">{row.collaboratorId}</span>
-                                    <span className="text-gray-800">{co?.name ?? '—'}</span>
-                                    {coOnLeave && <span className="text-xs text-rose-600 bg-rose-100 rounded px-1">休假</span>}
-                                  </>
-                                ) : (
+                              <div className="flex flex-wrap gap-1">
+                                {row.collaboratorIds.length > 0 ? row.collaboratorIds.map(cid => {
+                                  const co = personMap.get(cid);
+                                  const onLeave = leaveSet.has(cid);
+                                  return (
+                                    <span key={cid} className="inline-flex items-center gap-1 text-sm bg-gray-100 rounded px-1.5 py-0.5">
+                                      <span className="text-xs font-mono text-gray-400">{cid}</span>
+                                      <span className="text-gray-800">{co?.name ?? '—'}</span>
+                                      {onLeave && <span className="text-xs text-rose-600 bg-rose-100 rounded px-1">休假</span>}
+                                    </span>
+                                  );
+                                }) : (
                                   <span className="text-gray-300 text-sm">—</span>
                                 )}
                               </div>
@@ -1035,7 +1069,7 @@ export default function App() {
                 const expertMachines = p.skills.filter(s => s.level === 'expert');
                 const competentMachines = p.skills.filter(s => s.level === 'competent');
                 const opAssignment = rows.find(r => r.operatorId === p.id);
-                const coAssignment = rows.find(r => r.collaboratorId === p.id);
+                const coAssignment = rows.find(r => r.collaboratorIds.includes(p.id));
                 const isOnLeave = leaveSet.has(p.id);
 
                 return (
@@ -1211,6 +1245,205 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {/* ══ Overtime Tab ══ */}
+        {!loading && tab === 'overtime' && (
+          <div className="space-y-4">
+            {/* Toolbar */}
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <label className="text-sm text-gray-500">加班日期</label>
+                <input type="date" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)}
+                  className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                {canEdit && (
+                  <button onClick={() => setShowOtMachinePicker(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 bg-white text-sm text-gray-700 rounded-lg hover:bg-gray-50">
+                    <Factory size={14} />選擇機台
+                    <span className="bg-blue-100 text-blue-700 text-xs rounded-full px-2 py-0.5 ml-1">{overtimeRows.length}</span>
+                  </button>
+                )}
+              </div>
+              {canEdit && (
+                <button onClick={async () => {
+                  if (overtimeRows.length > 0 && !confirm('將清除目前加班排班並從每日排班複製，確定？')) return;
+                  await api.copyScheduleToOvertime(scheduleDate);
+                  await refreshOvertime(scheduleDate);
+                }}
+                  className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-700 shadow-sm">
+                  <Copy size={15} />一鍵複製每日排班
+                </button>
+              )}
+            </div>
+
+            {!canEdit && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-800 flex items-center gap-2">
+                <Eye size={14} />
+                <span>您目前以瀏覽模式查看排班，僅能檢視內容。如需編輯請點右上角「登入」。</span>
+              </div>
+            )}
+
+            {/* Overtime table */}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+              {overtimeRows.length === 0 ? (
+                <div className="p-12 text-center text-gray-400">
+                  <Clock size={36} className="mx-auto mb-3 text-gray-300" />
+                  <p className="font-medium text-gray-600">尚未安排加班</p>
+                  <p className="text-sm mt-1">點擊「一鍵複製每日排班」快速匯入，或手動選擇機台</p>
+                </div>
+              ) : (
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="bg-amber-50 border-b border-amber-200">
+                      <th className="text-left font-semibold text-gray-600 px-4 py-3 w-36">機台號碼</th>
+                      <th className="text-left font-semibold text-gray-600 px-4 py-3 w-44">主要操作者</th>
+                      <th className="text-left font-semibold text-gray-600 px-4 py-3 w-52">協作者</th>
+                      <th className="text-left font-semibold text-gray-600 px-4 py-3">預計生產品項</th>
+                      {canEdit && <th className="px-4 py-3 w-20"></th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {overtimeRows.map((row, idx) => {
+                      const isEditing = editingOtMachine === row.machineId;
+                      const op = personMap.get(row.operatorId);
+                      const m = machineMap.get(row.machineId);
+
+                      return (
+                        <tr key={row.machineId}
+                          className={`border-b border-gray-100 last:border-0 ${
+                            isEditing ? 'bg-blue-50' : idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'
+                          }`}>
+                          <td className="px-4 py-3">
+                            <span className="text-xs font-mono text-gray-400 block">{row.machineId}</span>
+                            <span className="font-medium text-gray-800">{m?.name}</span>
+                          </td>
+
+                          <td className="px-4 py-3">
+                            {isEditing ? (
+                              <select value={editingOtData.operatorId ?? ''}
+                                onChange={e => setEditingOtData(p => ({ ...p, operatorId: e.target.value }))}
+                                className="w-full border border-blue-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white">
+                                <option value="">— 未指派 —</option>
+                                {personnel.map(p => (
+                                  <option key={p.id} value={p.id}>{p.id} {p.name}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <div className="flex items-center gap-1.5">
+                                {row.operatorId ? (
+                                  <>
+                                    <span className="text-xs font-mono text-gray-400 bg-gray-100 rounded px-1">{row.operatorId}</span>
+                                    <span className="font-medium text-gray-800">{op?.name ?? '—'}</span>
+                                  </>
+                                ) : (
+                                  <span className="text-gray-300 text-sm italic">未指派</span>
+                                )}
+                              </div>
+                            )}
+                          </td>
+
+                          <td className="px-4 py-3">
+                            {isEditing ? (
+                              <div className="space-y-1 max-h-32 overflow-y-auto">
+                                {personnel.map(p => {
+                                  const editIds: string[] = (editingOtData.collaboratorIds as string[] | undefined) ?? [];
+                                  const checked = editIds.includes(p.id);
+                                  return (
+                                    <label key={p.id} className="flex items-center gap-1.5 text-sm cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5">
+                                      <input type="checkbox" checked={checked}
+                                        onChange={() => {
+                                          setEditingOtData(prev => {
+                                            const cur: string[] = (prev.collaboratorIds as string[] | undefined) ?? [];
+                                            const next = checked ? cur.filter(x => x !== p.id) : [...cur, p.id];
+                                            return { ...prev, collaboratorIds: next };
+                                          });
+                                        }}
+                                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-400" />
+                                      <span className="text-xs font-mono text-gray-400">{p.id}</span>
+                                      <span>{p.name}</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div className="flex flex-wrap gap-1">
+                                {row.collaboratorIds.length > 0 ? row.collaboratorIds.map(cid => {
+                                  const co = personMap.get(cid);
+                                  return (
+                                    <span key={cid} className="inline-flex items-center gap-1 text-sm bg-gray-100 rounded px-1.5 py-0.5">
+                                      <span className="text-xs font-mono text-gray-400">{cid}</span>
+                                      <span className="text-gray-800">{co?.name ?? '—'}</span>
+                                    </span>
+                                  );
+                                }) : (
+                                  <span className="text-gray-300 text-sm">—</span>
+                                )}
+                              </div>
+                            )}
+                          </td>
+
+                          <td className="px-4 py-3">
+                            {isEditing ? (
+                              <input value={editingOtData.productionItems ?? ''}
+                                onChange={e => setEditingOtData(p => ({ ...p, productionItems: e.target.value }))}
+                                placeholder="輸入品項"
+                                className="w-full border border-blue-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                            ) : (
+                              <span className="text-gray-700">{row.productionItems || <span className="text-gray-300 italic">未填寫</span>}</span>
+                            )}
+                          </td>
+
+                          {canEdit && (
+                            <td className="px-4 py-3">
+                              {isEditing ? (
+                                <div className="flex gap-1">
+                                  <button onClick={async () => {
+                                    if (!editingOtMachine) return;
+                                    const original = overtimeRows.find(r => r.machineId === editingOtMachine);
+                                    if (!original) return;
+                                    const merged = { ...original, ...editingOtData };
+                                    await api.saveOvertimeRow({
+                                      date: scheduleDate,
+                                      machineId: merged.machineId,
+                                      operatorId: merged.operatorId,
+                                      collaboratorIds: merged.collaboratorIds,
+                                      productionItems: merged.productionItems,
+                                    });
+                                    setEditingOtMachine(null);
+                                    setEditingOtData({});
+                                    await refreshOvertime(scheduleDate);
+                                  }} className="p-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-100">
+                                    <Check size={13} />
+                                  </button>
+                                  <button onClick={() => { setEditingOtMachine(null); setEditingOtData({}); }} className="p-1.5 bg-gray-50 text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100">
+                                    <X size={13} />
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex gap-1">
+                                  <button onClick={() => { setEditingOtMachine(row.machineId); setEditingOtData({ ...row }); }} className="p-1.5 text-gray-300 hover:text-blue-600 rounded-lg hover:bg-blue-50">
+                                    <Edit3 size={13} />
+                                  </button>
+                                  {canDelete && (
+                                    <button onClick={async () => {
+                                      await api.deleteOvertimeRow(scheduleDate, row.machineId);
+                                      await refreshOvertime(scheduleDate);
+                                    }} className="p-1.5 text-gray-300 hover:text-red-500 rounded-lg hover:bg-red-50">
+                                      <Trash2 size={13} />
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Modals */}
@@ -1238,6 +1471,31 @@ export default function App() {
           currentMachineIds={rows.map(r => r.machineId)}
           onConfirm={handleMachinePickerConfirm}
           onClose={() => setShowMachinePicker(false)}
+        />
+      )}
+
+      {showOtMachinePicker && (
+        <MachinePickerModal
+          machines={machines}
+          currentMachineIds={overtimeRows.map(r => r.machineId)}
+          onConfirm={async (selected) => {
+            const bulkRows = selected.map(id => {
+              const existing = overtimeRows.find(r => r.machineId === id);
+              if (existing) {
+                return {
+                  machineId: id,
+                  operatorId: existing.operatorId || undefined,
+                  collaboratorIds: existing.collaboratorIds.length > 0 ? existing.collaboratorIds : undefined,
+                  productionItems: existing.productionItems || undefined,
+                };
+              }
+              return { machineId: id };
+            });
+            await api.bulkSaveOvertime(scheduleDate, bulkRows);
+            setShowOtMachinePicker(false);
+            await refreshOvertime(scheduleDate);
+          }}
+          onClose={() => setShowOtMachinePicker(false)}
         />
       )}
 

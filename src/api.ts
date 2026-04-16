@@ -32,7 +32,7 @@ export const fetchSchedule = (date: string) =>
   request<{
     machineId: string;
     operatorId: string | null;
-    collaboratorId: string | null;
+    collaboratorIds: string[];
     productionItems: string;
     assignedDate: string;
     daysAtStation: number;
@@ -42,7 +42,7 @@ export const saveScheduleRow = (row: {
   date: string;
   machineId: string;
   operatorId: string;
-  collaboratorId: string;
+  collaboratorIds: string[];
   productionItems: string;
   assignedDate: string;
 }) => request('/schedule', { method: 'POST', body: JSON.stringify(row) });
@@ -53,10 +53,40 @@ export const deleteScheduleRow = (date: string, machineId: string) =>
 export const bulkSaveSchedule = (date: string, rows: {
   machineId: string;
   operatorId?: string;
-  collaboratorId?: string;
+  collaboratorIds?: string[];
   productionItems?: string;
   assignedDate?: string;
 }[]) => request('/schedule/bulk', { method: 'POST', body: JSON.stringify({ date, rows }) });
+
+// ─── Overtime Schedule ────────────────────────────────────────────────────────
+export const fetchOvertime = (date: string) =>
+  request<{
+    machineId: string;
+    operatorId: string | null;
+    collaboratorIds: string[];
+    productionItems: string;
+  }[]>(`/overtime?date=${date}`);
+
+export const saveOvertimeRow = (row: {
+  date: string;
+  machineId: string;
+  operatorId: string;
+  collaboratorIds: string[];
+  productionItems: string;
+}) => request('/overtime', { method: 'POST', body: JSON.stringify(row) });
+
+export const deleteOvertimeRow = (date: string, machineId: string) =>
+  request('/overtime', { method: 'DELETE', body: JSON.stringify({ date, machineId }) });
+
+export const bulkSaveOvertime = (date: string, rows: {
+  machineId: string;
+  operatorId?: string;
+  collaboratorIds?: string[];
+  productionItems?: string;
+}[]) => request('/overtime/bulk', { method: 'POST', body: JSON.stringify({ date, rows }) });
+
+export const copyScheduleToOvertime = (date: string) =>
+  request<{ ok: boolean; copied: number }>('/overtime/copy-from-schedule', { method: 'POST', body: JSON.stringify({ date }) });
 
 // ─── Leave ────────────────────────────────────────────────────────────────────
 export const fetchLeave = (date: string) =>

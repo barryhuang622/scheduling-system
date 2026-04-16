@@ -14,10 +14,17 @@ export interface Personnel {
 export interface ScheduleRow {
   machineId: string;
   operatorId: string;
-  collaboratorId: string;
+  collaboratorIds: string[];
   productionItems: string;
   daysAtStation: number;
   assignedDate: string;
+}
+
+export interface OvertimeRow {
+  machineId: string;
+  operatorId: string;
+  collaboratorIds: string[];
+  productionItems: string;
 }
 
 export interface ScheduleDay {
@@ -31,7 +38,7 @@ export interface Machine {
   name: string;
 }
 
-export type TabType = 'schedule' | 'personnel' | 'machine';
+export type TabType = 'schedule' | 'personnel' | 'machine' | 'overtime';
 
 export type Role = 'viewer' | 'scheduler' | 'admin';
 

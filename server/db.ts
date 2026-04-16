@@ -33,9 +33,19 @@ export async function initDB() {
       date DATE NOT NULL,
       machine_id TEXT NOT NULL REFERENCES machines(id) ON DELETE CASCADE,
       operator_id TEXT REFERENCES personnel(id) ON DELETE SET NULL,
-      collaborator_id TEXT REFERENCES personnel(id) ON DELETE SET NULL,
+      collaborator_ids TEXT NOT NULL DEFAULT '',
       production_items TEXT NOT NULL DEFAULT '',
       assigned_date DATE NOT NULL DEFAULT CURRENT_DATE,
+      UNIQUE (date, machine_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS overtime_schedule (
+      id SERIAL PRIMARY KEY,
+      date DATE NOT NULL,
+      machine_id TEXT NOT NULL REFERENCES machines(id) ON DELETE CASCADE,
+      operator_id TEXT REFERENCES personnel(id) ON DELETE SET NULL,
+      collaborator_ids TEXT NOT NULL DEFAULT '',
+      production_items TEXT NOT NULL DEFAULT '',
       UNIQUE (date, machine_id)
     );
 
@@ -46,5 +56,19 @@ export async function initDB() {
       UNIQUE (date, personnel_id)
     );
   `);
+
+  // Migration: rename collaborator_id → collaborator_ids (comma-separated)
+  await pool.query(`
+    DO $$ BEGIN
+      IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='schedule' AND column_name='collaborator_id') THEN
+        ALTER TABLE schedule DROP CONSTRAINT IF EXISTS schedule_collaborator_id_fkey;
+        ALTER TABLE schedule RENAME COLUMN collaborator_id TO collaborator_ids;
+        ALTER TABLE schedule ALTER COLUMN collaborator_ids SET DEFAULT '';
+        UPDATE schedule SET collaborator_ids = '' WHERE collaborator_ids IS NULL;
+        ALTER TABLE schedule ALTER COLUMN collaborator_ids SET NOT NULL;
+      END IF;
+    END $$;
+  `);
+
   console.log('Database tables initialized');
 }
