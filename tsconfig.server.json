@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "es2023",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "outDir": "./dist-server",
+    "rootDir": "./server",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "verbatimModuleSyntax": true,
+    "declaration": false,
+    "sourceMap": false
+  },
+  "include": ["server"]
+}

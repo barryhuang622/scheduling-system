@@ -5,21 +5,27 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:server": "tsx server/index.ts",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "start": "vite preview --host 0.0.0.0 --port ${PORT:-4173}"
+    "start": "tsx server/index.ts"
   },
   "dependencies": {
+    "@hono/node-server": "^1.19.14",
     "@tailwindcss/vite": "^4.2.2",
+    "hono": "^4.12.14",
     "lucide-react": "^1.8.0",
+    "pg": "^8.20.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "tailwindcss": "^4.2.2"
+    "tailwindcss": "^4.2.2",
+    "tsx": "^4.21.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
     "@types/node": "^24.12.2",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",

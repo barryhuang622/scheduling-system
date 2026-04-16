@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { Machine, Personnel, Role, ScheduleRow, SkillLevel, TabType, User } from './types';
-import { MACHINES as INITIAL_MACHINES, INITIAL_PERSONNEL, INITIAL_SCHEDULE } from './data';
+import * as api from './api';
 import {
   Users, CalendarDays, AlertTriangle,
   Brain, Plus, Trash2, Edit3, Check, X, ChevronDown, ChevronUp,
@@ -502,12 +502,14 @@ function LoginModal({ onLogin, onClose }: { onLogin: (user: User) => void; onClo
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
+  const today = new Date().toISOString().split('T')[0];
   const [tab, setTab] = useState<TabType>('schedule');
-  const [machines, setMachines] = useState<Machine[]>(INITIAL_MACHINES);
-  const [personnel, setPersonnel] = useState<Personnel[]>(INITIAL_PERSONNEL);
-  const [scheduleDate, setScheduleDate] = useState(INITIAL_SCHEDULE.date);
-  const [rows, setRows] = useState<ScheduleRow[]>(INITIAL_SCHEDULE.rows);
-  const [leaveIds, setLeaveIds] = useState<string[]>(INITIAL_SCHEDULE.leaveIds);
+  const [machines, setMachines] = useState<Machine[]>([]);
+  const [personnel, setPersonnel] = useState<Personnel[]>([]);
+  const [scheduleDate, setScheduleDate] = useState(today);
+  const [rows, setRows] = useState<ScheduleRow[]>([]);
+  const [leaveIds, setLeaveIds] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // ── Auth state ──
   const [user, setUser] = useState<User | null>(null);
@@ -527,6 +529,51 @@ export default function App() {
 
   const [editingRowMachine, setEditingRowMachine] = useState<string | null>(null);
   const [editingRowData, setEditingRowData] = useState<Partial<ScheduleRow>>({});
+
+  // ── Data fetching ──
+  const refreshMachines = useCallback(async () => {
+    const data = await api.fetchMachines();
+    setMachines(data);
+  }, []);
+
+  const refreshPersonnel = useCallback(async () => {
+    const data = await api.fetchPersonnel();
+    setPersonnel(data.map(p => ({
+      ...p,
+      skills: p.skills.map(s => ({ ...s, level: s.level as SkillLevel })),
+    })));
+  }, []);
+
+  const refreshSchedule = useCallback(async (date: string) => {
+    const [schedData, leaveData] = await Promise.all([
+      api.fetchSchedule(date),
+      api.fetchLeave(date),
+    ]);
+    setRows(schedData.map(r => ({
+      machineId: r.machineId,
+      operatorId: r.operatorId ?? '',
+      collaboratorId: r.collaboratorId ?? '',
+      productionItems: r.productionItems,
+      assignedDate: r.assignedDate,
+      daysAtStation: r.daysAtStation,
+    })));
+    setLeaveIds(leaveData);
+  }, []);
+
+  // Initial load
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      await Promise.all([refreshMachines(), refreshPersonnel(), refreshSchedule(scheduleDate)]);
+      setLoading(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Reload schedule when date changes
+  useEffect(() => {
+    refreshSchedule(scheduleDate);
+  }, [scheduleDate, refreshSchedule]);
 
   const handleLogout = () => {
     setUser(null);
@@ -550,54 +597,41 @@ export default function App() {
     setShowAI(true);
   };
 
-  const handleApplySuggestion = useCallback((s: Suggestion) => {
-    setRows(prev =>
-      prev.map(r =>
-        r.machineId === s.machineId
-          ? { ...r, operatorId: s.suggestedOperatorId, daysAtStation: 0, assignedDate: scheduleDate }
-          : r
-      )
-    );
-    setAiSuggestions(prev => prev.filter(x => x.machineId !== s.machineId));
-  }, [scheduleDate]);
-
-  const handleSavePersonnel = (p: Personnel) => {
-    setPersonnel(prev => {
-      const idx = prev.findIndex(x => x.id === p.id);
-      if (idx >= 0) { const next = [...prev]; next[idx] = p; return next; }
-      return [...prev, p];
+  const handleApplySuggestion = useCallback(async (s: Suggestion) => {
+    const row = rows.find(r => r.machineId === s.machineId);
+    if (!row) return;
+    await api.saveScheduleRow({
+      date: scheduleDate,
+      machineId: s.machineId,
+      operatorId: s.suggestedOperatorId,
+      collaboratorId: row.collaboratorId,
+      productionItems: row.productionItems,
+      assignedDate: scheduleDate,
     });
+    setAiSuggestions(prev => prev.filter(x => x.machineId !== s.machineId));
+    await refreshSchedule(scheduleDate);
+  }, [scheduleDate, rows, refreshSchedule]);
+
+  const handleSavePersonnel = async (p: Personnel) => {
+    await api.savePersonnel(p);
+    await refreshPersonnel();
     setEditingPersonnel(null);
   };
 
-  const handleSaveMachine = (m: Machine) => {
-    setMachines(prev => {
-      const idx = prev.findIndex(x => x.id === m.id);
-      if (idx >= 0) { const next = [...prev]; next[idx] = m; return next; }
-      // For new machines, also extend personnel skills with 'none' default
-      const result = [...prev, m].sort((a, b) => a.id.localeCompare(b.id));
-      setPersonnel(prevP => prevP.map(p => ({
-        ...p,
-        skills: p.skills.find(s => s.machineId === m.id)
-          ? p.skills
-          : [...p.skills, { machineId: m.id, level: 'none' as SkillLevel }],
-      })));
-      return result;
-    });
+  const handleSaveMachine = async (m: Machine) => {
+    await api.saveMachine(m);
+    await Promise.all([refreshMachines(), refreshPersonnel()]);
     setEditingMachine(null);
   };
 
-  const handleDeleteMachine = (id: string) => {
+  const handleDeleteMachine = async (id: string) => {
     if (rows.some(r => r.machineId === id)) {
       alert('此機台仍在今日排班中，請先從排班移除');
       return;
     }
     if (!confirm('確定刪除此機台？所有人員技能紀錄中的此機台也會被移除。')) return;
-    setMachines(prev => prev.filter(m => m.id !== id));
-    setPersonnel(prev => prev.map(p => ({
-      ...p,
-      skills: p.skills.filter(s => s.machineId !== id),
-    })));
+    await api.deleteMachine(id);
+    await Promise.all([refreshMachines(), refreshPersonnel()]);
   };
 
   const startEditRow = (row: ScheduleRow) => {
@@ -605,34 +639,52 @@ export default function App() {
     setEditingRowData({ ...row });
   };
 
-  const saveEditRow = () => {
+  const saveEditRow = async () => {
     if (!editingRowMachine) return;
-    setRows(prev => prev.map(r => r.machineId === editingRowMachine ? { ...r, ...editingRowData } : r));
+    const original = rows.find(r => r.machineId === editingRowMachine);
+    if (!original) return;
+    const merged = { ...original, ...editingRowData };
+    await api.saveScheduleRow({
+      date: scheduleDate,
+      machineId: merged.machineId,
+      operatorId: merged.operatorId,
+      collaboratorId: merged.collaboratorId,
+      productionItems: merged.productionItems,
+      assignedDate: merged.assignedDate,
+    });
     setEditingRowMachine(null);
     setEditingRowData({});
+    await refreshSchedule(scheduleDate);
   };
 
-  const handleMachinePickerConfirm = (selected: string[]) => {
-    const currentIds = new Set(rows.map(r => r.machineId));
-    const selectedSet = new Set(selected);
-    const kept = rows.filter(r => selectedSet.has(r.machineId));
-    const added: ScheduleRow[] = selected
-      .filter(id => !currentIds.has(id))
-      .map(id => ({
-        machineId: id, operatorId: '', collaboratorId: '',
-        productionItems: '', daysAtStation: 0, assignedDate: scheduleDate,
-      }));
-    const merged = [...kept, ...added].sort((a, b) => a.machineId.localeCompare(b.machineId));
-    setRows(merged);
+  const handleMachinePickerConfirm = async (selected: string[]) => {
+    const bulkRows = selected.map(id => {
+      const existing = rows.find(r => r.machineId === id);
+      if (existing) {
+        return {
+          machineId: id,
+          operatorId: existing.operatorId || undefined,
+          collaboratorId: existing.collaboratorId || undefined,
+          productionItems: existing.productionItems || undefined,
+          assignedDate: existing.assignedDate || undefined,
+        };
+      }
+      return { machineId: id };
+    });
+    await api.bulkSaveSchedule(scheduleDate, bulkRows);
     setShowMachinePicker(false);
+    await refreshSchedule(scheduleDate);
   };
 
-  const removeRow = (machineId: string) => {
-    setRows(prev => prev.filter(r => r.machineId !== machineId));
+  const removeRow = async (machineId: string) => {
+    await api.deleteScheduleRow(scheduleDate, machineId);
+    await refreshSchedule(scheduleDate);
   };
 
-  const removeFromLeave = (id: string) => {
-    setLeaveIds(prev => prev.filter(x => x !== id));
+  const removeFromLeave = async (id: string) => {
+    const newLeave = leaveIds.filter(x => x !== id);
+    await api.saveLeave(scheduleDate, newLeave);
+    setLeaveIds(newLeave);
   };
 
   return (
@@ -701,8 +753,14 @@ export default function App() {
 
       <main className="max-w-7xl mx-auto px-6 py-6">
 
+        {loading && (
+          <div className="text-center py-20 text-gray-400">
+            <p className="text-lg font-medium text-gray-600">載入中…</p>
+          </div>
+        )}
+
         {/* ══ Schedule Tab ══ */}
-        {tab === 'schedule' && (
+        {!loading && tab === 'schedule' && (
           <div className="space-y-4">
             {/* Toolbar */}
             <div className="flex items-center justify-between flex-wrap gap-3">
@@ -916,16 +974,10 @@ export default function App() {
                           </td>
 
                           <td className="px-4 py-3">
-                            {isEditing ? (
-                              <input type="number" min={0} value={editingRowData.daysAtStation ?? 0}
-                                onChange={e => setEditingRowData(p => ({ ...p, daysAtStation: Number(e.target.value) }))}
-                                className="w-full border border-blue-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
-                            ) : (
-                              <div className="flex items-center gap-1.5">
-                                <span className={`font-semibold ${isAlert ? 'text-red-600' : 'text-gray-700'}`}>{row.daysAtStation} 天</span>
-                                {isAlert && <AlertTriangle size={12} className="text-orange-500" />}
-                              </div>
-                            )}
+                            <div className="flex items-center gap-1.5">
+                              <span className={`font-semibold ${isAlert ? 'text-red-600' : 'text-gray-700'}`}>{row.daysAtStation} 天</span>
+                              {isAlert && <AlertTriangle size={12} className="text-orange-500" />}
+                            </div>
                           </td>
 
                           {canEdit && (
@@ -964,7 +1016,7 @@ export default function App() {
         )}
 
         {/* ══ Personnel Tab ══ */}
-        {tab === 'personnel' && (
+        {!loading && tab === 'personnel' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <p className="text-sm text-gray-500">
@@ -1039,7 +1091,11 @@ export default function App() {
                           <Edit3 size={14} />
                         </button>
                         {canDelete && (
-                          <button onClick={() => setPersonnel(prev => prev.filter(x => x.id !== p.id))} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50">
+                          <button onClick={async () => {
+                            if (!confirm(`確定刪除 ${p.name}？`)) return;
+                            await api.deletePersonnel(p.id);
+                            await refreshPersonnel();
+                          }} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50">
                             <Trash2 size={14} />
                           </button>
                         )}
@@ -1077,7 +1133,7 @@ export default function App() {
         )}
 
         {/* ══ Machine Tab ══ */}
-        {tab === 'machine' && (
+        {!loading && tab === 'machine' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <p className="text-sm text-gray-500">
@@ -1189,7 +1245,11 @@ export default function App() {
         <LeavePickerModal
           personnel={personnel}
           currentLeaveIds={leaveIds}
-          onConfirm={(ids) => { setLeaveIds(ids); setShowLeavePicker(false); }}
+          onConfirm={async (ids) => {
+            await api.saveLeave(scheduleDate, ids);
+            setLeaveIds(ids);
+            setShowLeavePicker(false);
+          }}
           onClose={() => setShowLeavePicker(false)}
         />
       )}
