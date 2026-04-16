@@ -600,6 +600,16 @@ export default function App() {
     setEditingMachine(null);
   };
 
+  const handleLogin = (u: User) => {
+    setUser(u);
+    setShowLogin(false);
+    // 登入時自動跳到今天日期
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (scheduleDate !== todayStr) {
+      setScheduleDate(todayStr);
+    }
+  };
+
   const personMap = new Map(personnel.map(p => [p.id, p]));
   const machineMap = new Map(machines.map(m => [m.id, m]));
   const leaveSet = new Set(leaveIds);
@@ -1522,7 +1532,7 @@ export default function App() {
 
       {showLogin && (
         <LoginModal
-          onLogin={(u) => { setUser(u); setShowLogin(false); }}
+          onLogin={handleLogin}
           onClose={() => setShowLogin(false)}
         />
       )}
