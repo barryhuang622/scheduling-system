@@ -95,7 +95,7 @@ export const INITIAL_PERSONNEL: Personnel[] = [
   { id: 'N051', name: '安多WIRANTO', skills: emptySkills() },
 ];
 
-const today = new Date().toISOString().split('T')[0];
+const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Taipei' });
 
 export const INITIAL_SCHEDULE: ScheduleDay = {
   date: today,

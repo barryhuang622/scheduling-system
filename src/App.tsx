@@ -544,9 +544,17 @@ function SheetConfigModal({ currentUrl, onSave, onClose }: {
   );
 }
 
+// ─── Date helpers (台北時區) ──────────────────────────────────────────────────
+// 台灣是 UTC+8。直接用 toISOString() 會回傳 UTC 日期，凌晨時段會拿到昨天，
+// 因此統一用 Asia/Taipei 時區的 YYYY-MM-DD。
+const getTaipeiToday = () => {
+  // en-CA 會輸出 YYYY-MM-DD 格式
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Taipei' });
+};
+
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getTaipeiToday();
   const [tab, setTab] = useState<TabType>('schedule');
   const [machines, setMachines] = useState<Machine[]>([]);
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
@@ -670,7 +678,7 @@ export default function App() {
   // or the mobile browser skips the visibility event, it still catches up).
   useEffect(() => {
     const updateToToday = () => {
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = getTaipeiToday();
       setScheduleDate(prev => (prev === todayStr ? prev : todayStr));
     };
     // run immediately on mount
@@ -702,8 +710,8 @@ export default function App() {
   const handleLogin = (u: User) => {
     setUser(u);
     setShowLogin(false);
-    // 登入時自動跳到今天日期
-    const todayStr = new Date().toISOString().split('T')[0];
+    // 登入時自動跳到今天日期（台北時區）
+    const todayStr = getTaipeiToday();
     if (scheduleDate !== todayStr) {
       setScheduleDate(todayStr);
     }

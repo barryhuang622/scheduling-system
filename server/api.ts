@@ -3,6 +3,10 @@ import pool from './db.js';
 
 const api = new Hono();
 
+// 取得台北時區的今日日期 YYYY-MM-DD
+const getTaipeiToday = () =>
+  new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Taipei' });
+
 // ─── Machines ─────────────────────────────────────────────────────────────────
 api.get('/machines', async (c) => {
   const { rows } = await pool.query('SELECT id, name FROM machines ORDER BY id');
@@ -75,7 +79,7 @@ function serializeCollabIds(ids: string[] | string | null | undefined): string {
 
 // ─── Schedule ─────────────────────────────────────────────────────────────────
 api.get('/schedule', async (c) => {
-  const date = c.req.query('date') || new Date().toISOString().split('T')[0];
+  const date = c.req.query('date') || getTaipeiToday();
   const { rows } = await pool.query(
     `SELECT
        machine_id AS "machineId",
@@ -143,7 +147,7 @@ api.post('/schedule/bulk', async (c) => {
 
 // ─── Overtime Schedule ────────────────────────────────────────────────────────
 api.get('/overtime', async (c) => {
-  const date = c.req.query('date') || new Date().toISOString().split('T')[0];
+  const date = c.req.query('date') || getTaipeiToday();
   const { rows } = await pool.query(
     `SELECT
        machine_id AS "machineId",
@@ -230,7 +234,7 @@ api.post('/overtime/copy-from-schedule', async (c) => {
 
 // ─── Leave ────────────────────────────────────────────────────────────────────
 api.get('/leave', async (c) => {
-  const date = c.req.query('date') || new Date().toISOString().split('T')[0];
+  const date = c.req.query('date') || getTaipeiToday();
   const { rows } = await pool.query(
     'SELECT personnel_id AS "personnelId" FROM leave_records WHERE date = $1',
     [date]
