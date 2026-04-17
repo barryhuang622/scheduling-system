@@ -665,20 +665,29 @@ export default function App() {
     refreshOvertime(scheduleDate);
   }, [scheduleDate, refreshSchedule, refreshOvertime]);
 
-  // Update date to today whenever the page becomes visible or window gains focus
+  // Always auto-update date to today: on mount, on visibility/focus/pageshow,
+  // and every 60 seconds as a fallback (so if user leaves page open past midnight
+  // or the mobile browser skips the visibility event, it still catches up).
   useEffect(() => {
     const updateToToday = () => {
       const todayStr = new Date().toISOString().split('T')[0];
       setScheduleDate(prev => (prev === todayStr ? prev : todayStr));
     };
+    // run immediately on mount
+    updateToToday();
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') updateToToday();
     };
+    const handlePageShow = () => updateToToday();
     document.addEventListener('visibilitychange', handleVisibility);
     window.addEventListener('focus', updateToToday);
+    window.addEventListener('pageshow', handlePageShow);
+    const interval = window.setInterval(updateToToday, 60_000);
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('focus', updateToToday);
+      window.removeEventListener('pageshow', handlePageShow);
+      window.clearInterval(interval);
     };
   }, []);
 
@@ -1019,11 +1028,11 @@ export default function App() {
                 <table className="w-full text-sm border-collapse">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      <th className="text-left font-semibold text-gray-600 px-4 py-3 w-36">機台號碼</th>
-                      <th className="text-left font-semibold text-gray-600 px-4 py-3 w-44">主機</th>
-                      <th className="text-left font-semibold text-gray-600 px-4 py-3 w-44">作業員</th>
-                      <th className="text-left font-semibold text-gray-600 px-4 py-3">預計生產品項</th>
-                      {canEdit && <th className="text-left font-semibold text-gray-600 px-4 py-3 w-28">在崗天數</th>}
+                      <th className="text-left font-semibold text-gray-600 px-2 py-3 w-20">機台</th>
+                      <th className="text-left font-semibold text-gray-600 px-2 py-3 w-24">主機</th>
+                      <th className="text-left font-semibold text-gray-600 px-2 py-3 w-32">作業員</th>
+                      <th className="text-left font-semibold text-gray-600 px-2 py-3">品項</th>
+                      {canEdit && <th className="text-left font-semibold text-gray-600 px-2 py-3 w-20">在崗</th>}
                       {canEdit && <th className="px-4 py-3 w-20"></th>}
                     </tr>
                   </thead>
@@ -1046,12 +1055,12 @@ export default function App() {
                             isAlert ? 'bg-orange-50/40' :
                             idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'
                           }`}>
-                          <td className="px-4 py-3">
+                          <td className="px-2 py-3">
                             <span className="text-xs font-mono text-gray-400 block">{row.machineId}</span>
-                            <span className="font-medium text-gray-800">{m?.name}</span>
+                            <span className="font-medium text-gray-800 text-sm">{m?.name}</span>
                           </td>
 
-                          <td className="px-4 py-3">
+                          <td className="px-2 py-3">
                             {isEditing ? (
                               <select value={editingRowData.operatorId ?? ''}
                                 onChange={e => setEditingRowData(p => ({ ...p, operatorId: e.target.value }))}
@@ -1076,7 +1085,7 @@ export default function App() {
                             )}
                           </td>
 
-                          <td className="px-4 py-3">
+                          <td className="px-2 py-3">
                             {isEditing ? (
                               <div className="space-y-1 max-h-32 overflow-y-auto">
                                 {availablePersonnel.map(p => {
@@ -1118,7 +1127,7 @@ export default function App() {
                             )}
                           </td>
 
-                          <td className="px-4 py-3">
+                          <td className="px-2 py-3">
                             {isEditing ? (
                               <input value={editingRowData.productionItems ?? ''}
                                 onChange={e => setEditingRowData(p => ({ ...p, productionItems: e.target.value }))}
@@ -1130,9 +1139,9 @@ export default function App() {
                           </td>
 
                           {canEdit && (
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-1.5">
-                                <span className={`font-semibold ${isAlert ? 'text-red-600' : 'text-gray-700'}`}>{row.daysAtStation} 天</span>
+                            <td className="px-2 py-3">
+                              <div className="flex items-center gap-1">
+                                <span className={`font-semibold text-sm ${isAlert ? 'text-red-600' : 'text-gray-700'}`}>{row.daysAtStation}天</span>
                                 {isAlert && <AlertTriangle size={12} className="text-orange-500" />}
                               </div>
                             </td>
@@ -1418,10 +1427,10 @@ export default function App() {
                 <table className="w-full text-sm border-collapse">
                   <thead>
                     <tr className="bg-amber-50 border-b border-amber-200">
-                      <th className="text-left font-semibold text-gray-600 px-4 py-3 w-36">機台號碼</th>
-                      <th className="text-left font-semibold text-gray-600 px-4 py-3 w-44">主機</th>
-                      <th className="text-left font-semibold text-gray-600 px-4 py-3 w-52">作業員</th>
-                      <th className="text-left font-semibold text-gray-600 px-4 py-3">預計生產品項</th>
+                      <th className="text-left font-semibold text-gray-600 px-2 py-3 w-20">機台</th>
+                      <th className="text-left font-semibold text-gray-600 px-2 py-3 w-24">主機</th>
+                      <th className="text-left font-semibold text-gray-600 px-2 py-3 w-32">作業員</th>
+                      <th className="text-left font-semibold text-gray-600 px-2 py-3">品項</th>
                       {canEdit && <th className="px-4 py-3 w-20"></th>}
                     </tr>
                   </thead>
@@ -1436,12 +1445,12 @@ export default function App() {
                           className={`border-b border-gray-100 last:border-0 ${
                             isEditing ? 'bg-blue-50' : idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'
                           }`}>
-                          <td className="px-4 py-3">
+                          <td className="px-2 py-3">
                             <span className="text-xs font-mono text-gray-400 block">{row.machineId}</span>
-                            <span className="font-medium text-gray-800">{m?.name}</span>
+                            <span className="font-medium text-gray-800 text-sm">{m?.name}</span>
                           </td>
 
-                          <td className="px-4 py-3">
+                          <td className="px-2 py-3">
                             {isEditing ? (
                               <select value={editingOtData.operatorId ?? ''}
                                 onChange={e => setEditingOtData(p => ({ ...p, operatorId: e.target.value }))}
@@ -1465,7 +1474,7 @@ export default function App() {
                             )}
                           </td>
 
-                          <td className="px-4 py-3">
+                          <td className="px-2 py-3">
                             {isEditing ? (
                               <div className="space-y-1 max-h-32 overflow-y-auto">
                                 {personnel.map(p => {
@@ -1505,7 +1514,7 @@ export default function App() {
                             )}
                           </td>
 
-                          <td className="px-4 py-3">
+                          <td className="px-2 py-3">
                             {isEditing ? (
                               <input value={editingOtData.productionItems ?? ''}
                                 onChange={e => setEditingOtData(p => ({ ...p, productionItems: e.target.value }))}
