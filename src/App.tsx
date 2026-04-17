@@ -665,6 +665,23 @@ export default function App() {
     refreshOvertime(scheduleDate);
   }, [scheduleDate, refreshSchedule, refreshOvertime]);
 
+  // Update date to today whenever the page becomes visible or window gains focus
+  useEffect(() => {
+    const updateToToday = () => {
+      const todayStr = new Date().toISOString().split('T')[0];
+      setScheduleDate(prev => (prev === todayStr ? prev : todayStr));
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') updateToToday();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', updateToToday);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', updateToToday);
+    };
+  }, []);
+
   const handleLogout = () => {
     setUser(null);
     setTab('schedule');
@@ -1003,10 +1020,10 @@ export default function App() {
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
                       <th className="text-left font-semibold text-gray-600 px-4 py-3 w-36">機台號碼</th>
-                      <th className="text-left font-semibold text-gray-600 px-4 py-3 w-44">主要操作者</th>
-                      <th className="text-left font-semibold text-gray-600 px-4 py-3 w-44">協作者</th>
+                      <th className="text-left font-semibold text-gray-600 px-4 py-3 w-44">主機</th>
+                      <th className="text-left font-semibold text-gray-600 px-4 py-3 w-44">作業員</th>
                       <th className="text-left font-semibold text-gray-600 px-4 py-3">預計生產品項</th>
-                      <th className="text-left font-semibold text-gray-600 px-4 py-3 w-28">在崗天數</th>
+                      {canEdit && <th className="text-left font-semibold text-gray-600 px-4 py-3 w-28">在崗天數</th>}
                       {canEdit && <th className="px-4 py-3 w-20"></th>}
                     </tr>
                   </thead>
@@ -1112,12 +1129,14 @@ export default function App() {
                             )}
                           </td>
 
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-1.5">
-                              <span className={`font-semibold ${isAlert ? 'text-red-600' : 'text-gray-700'}`}>{row.daysAtStation} 天</span>
-                              {isAlert && <AlertTriangle size={12} className="text-orange-500" />}
-                            </div>
-                          </td>
+                          {canEdit && (
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-1.5">
+                                <span className={`font-semibold ${isAlert ? 'text-red-600' : 'text-gray-700'}`}>{row.daysAtStation} 天</span>
+                                {isAlert && <AlertTriangle size={12} className="text-orange-500" />}
+                              </div>
+                            </td>
+                          )}
 
                           {canEdit && (
                             <td className="px-4 py-3">
@@ -1400,8 +1419,8 @@ export default function App() {
                   <thead>
                     <tr className="bg-amber-50 border-b border-amber-200">
                       <th className="text-left font-semibold text-gray-600 px-4 py-3 w-36">機台號碼</th>
-                      <th className="text-left font-semibold text-gray-600 px-4 py-3 w-44">主要操作者</th>
-                      <th className="text-left font-semibold text-gray-600 px-4 py-3 w-52">協作者</th>
+                      <th className="text-left font-semibold text-gray-600 px-4 py-3 w-44">主機</th>
+                      <th className="text-left font-semibold text-gray-600 px-4 py-3 w-52">作業員</th>
                       <th className="text-left font-semibold text-gray-600 px-4 py-3">預計生產品項</th>
                       {canEdit && <th className="px-4 py-3 w-20"></th>}
                     </tr>
