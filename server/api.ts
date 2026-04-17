@@ -362,4 +362,49 @@ api.post('/leave/sync-from-sheet', async (c) => {
   return c.json({ ok: true, synced: matched.length, matched, total: leavePersonnelIds.length });
 });
 
+
+// ─── Sync leave directly (from ServiceJDC or other sources) ─────────────────
+api.post('/leave/sync-direct', async (c) => {
+  const { records } = await c.req.json<{
+    records: { name: string; startDate: string; endDate: string; personnelId?: string }[]
+  }>();
+
+  const { rows: allPersonnel } = await pool.query('SELECT id, name FROM personnel');
+  const nameToId = new Map<string, string>();
+  for (const p of allPersonnel) {
+    nameToId.set(p.name, p.id);
+  }
+
+  const matched: { id: string; name: string; dates: string[] }[] = [];
+  const unmatched: string[] = [];
+  let totalInserted = 0;
+
+  for (const rec of records) {
+    let pid = rec.personnelId || nameToId.get(rec.name) || '';
+    if (!pid) { unmatched.push(rec.name); continue; }
+
+    const parseDate = (s: string) => {
+      const m = s.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+      return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
+    };
+    const start = parseDate(rec.startDate);
+    const end = parseDate(rec.endDate);
+    if (!start || !end) { unmatched.push(rec.name + ' (invalid date)'); continue; }
+
+    const dates: string[] = [];
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0];
+      dates.push(dateStr);
+      const result = await pool.query(
+        'INSERT INTO leave_records (date, personnel_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        [dateStr, pid]
+      );
+      if (result.rowCount && result.rowCount > 0) totalInserted++;
+    }
+    matched.push({ id: pid, name: rec.name, dates });
+  }
+
+  return c.json({ ok: true, matchedCount: matched.length, unmatchedNames: unmatched, totalInserted, details: matched });
+});
+
 export default api;
