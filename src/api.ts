@@ -94,8 +94,3 @@ export const fetchLeave = (date: string) =>
 
 export const saveLeave = (date: string, personnelIds: string[]) =>
   request('/leave', { method: 'POST', body: JSON.stringify({ date, personnelIds }) });
-
-export const syncLeaveFromSheet = (date: string, sheetUrl: string) =>
-  request<{ ok: boolean; synced: number; matched: { id: string; name: string }[]; error?: string }>(
-    '/leave/sync-from-sheet', { method: 'POST', body: JSON.stringify({ date, sheetUrl }) }
-  );

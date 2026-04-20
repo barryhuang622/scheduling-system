@@ -500,50 +500,6 @@ function LoginModal({ onLogin, onClose }: { onLogin: (user: User) => void; onClo
   );
 }
 
-// ─── Sheet Config Modal ──────────────────────────────────────────────────────
-function SheetConfigModal({ currentUrl, onSave, onClose }: {
-  currentUrl: string;
-  onSave: (url: string) => void;
-  onClose: () => void;
-}) {
-  const [url, setUrl] = useState(currentUrl);
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-          <div className="flex items-center gap-2">
-            <CalendarDays size={16} className="text-blue-600" />
-            <h3 className="font-semibold text-gray-800">設定請假試算表</h3>
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
-        </div>
-        <div className="p-5 space-y-4">
-          <div className="text-xs text-gray-500 space-y-1">
-            <p>將 Google 試算表連結貼上，系統會自動讀取請假資料。</p>
-            <p>試算表需設為<strong>「知道連結的人都能檢視」</strong>。</p>
-            <p>欄位需包含：部門、姓名、開始時間、結束時間。</p>
-          </div>
-          <div>
-            <label className="text-xs font-medium text-gray-500 mb-1 block">Google 試算表連結</label>
-            <input
-              autoFocus
-              value={url}
-              onChange={e => setUrl(e.target.value)}
-              placeholder="https://docs.google.com/spreadsheets/d/..."
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-            />
-          </div>
-          <div className="flex justify-end gap-2 pt-1">
-            <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">取消</button>
-            <button onClick={() => onSave(url)} className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">儲存</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Date helpers (台北時區) ──────────────────────────────────────────────────
 // 台灣是 UTC+8。直接用 toISOString() 會回傳 UTC 日期，凌晨時段會拿到昨天，
 // 因此統一用 Asia/Taipei 時區的 YYYY-MM-DD。
@@ -588,17 +544,6 @@ export default function App() {
   const [editingOtData, setEditingOtData] = useState<Partial<OvertimeRow>>({});
   const [showOtMachinePicker, setShowOtMachinePicker] = useState(false);
 
-  // ── Leave sync from Google Sheet ──
-  const [sheetUrl, setSheetUrl] = useState(() => localStorage.getItem('leaveSheetUrl') || '');
-  const [showSheetConfig, setShowSheetConfig] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<{ loading: boolean; message?: string; error?: boolean }>({ loading: false });
-
-  const handleSaveSheetUrl = (url: string) => {
-    setSheetUrl(url);
-    localStorage.setItem('leaveSheetUrl', url);
-    setShowSheetConfig(false);
-  };
-
   // ── Data fetching ──
   const refreshMachines = useCallback(async () => {
     const data = await api.fetchMachines();
@@ -638,24 +583,6 @@ export default function App() {
       productionItems: r.productionItems,
     })));
   }, []);
-
-  const handleSyncLeave = useCallback(async () => {
-    if (!sheetUrl) { setShowSheetConfig(true); return; }
-    setSyncStatus({ loading: true });
-    try {
-      const result = await api.syncLeaveFromSheet(scheduleDate, sheetUrl);
-      if (result.ok) {
-        await refreshSchedule(scheduleDate);
-        const names = result.matched.map((m: { id: string; name: string }) => m.name).join('、');
-        setSyncStatus({ loading: false, message: `已同步 ${result.synced} 位請假人員${names ? '：' + names : ''}` });
-      } else {
-        setSyncStatus({ loading: false, message: (result as any).error || '同步失敗', error: true });
-      }
-    } catch {
-      setSyncStatus({ loading: false, message: '同步失敗，請確認試算表連結正確且為公開', error: true });
-    }
-    setTimeout(() => setSyncStatus({ loading: false }), 5000);
-  }, [sheetUrl, scheduleDate, refreshSchedule]);
 
   // Initial load
   useEffect(() => {
@@ -939,26 +866,10 @@ export default function App() {
                   </span>
                 </div>
                 {canEdit && (
-                  <div className="flex items-center gap-2">
-                    <button onClick={handleSyncLeave} disabled={syncStatus.loading}
-                      className="flex items-center gap-1 px-3 py-1.5 text-sm text-blue-600 border border-blue-200 bg-blue-50 rounded-lg hover:bg-blue-100 disabled:opacity-50"
-                      title={sheetUrl ? '從試算表同步請假資料' : '點擊設定試算表連結'}>
-                      {syncStatus.loading ? (
-                        <><Clock size={13} className="animate-spin" />同步中...</>
-                      ) : (
-                        <><CalendarDays size={13} />同步請假</>
-                      )}
-                    </button>
-                    <button onClick={() => setShowSheetConfig(true)}
-                      className="flex items-center gap-1 px-2 py-1.5 text-sm text-gray-500 border border-gray-200 bg-gray-50 rounded-lg hover:bg-gray-100"
-                      title="設定試算表連結">
-                      <Settings2 size={13} />
-                    </button>
-                    <button onClick={() => setShowLeavePicker(true)}
-                      className="flex items-center gap-1 px-3 py-1.5 text-sm text-rose-600 border border-rose-200 bg-rose-50 rounded-lg hover:bg-rose-100">
-                      <UserPlus size={13} />設定休假
-                    </button>
-                  </div>
+                  <button onClick={() => setShowLeavePicker(true)}
+                    className="flex items-center gap-1 px-3 py-1.5 text-sm text-rose-600 border border-rose-200 bg-rose-50 rounded-lg hover:bg-rose-100">
+                    <UserPlus size={13} />設定休假
+                  </button>
                 )}
               </div>
               {onLeaveList.length === 0 ? (
@@ -992,12 +903,6 @@ export default function App() {
                       return `${m?.name}（${conflictPeople}）`;
                     }).join('、')} 已被排班但今日休假，請調整。
                   </span>
-                </div>
-              )}
-              {syncStatus.message && (
-                <div className={`mt-3 rounded-lg px-3 py-2 text-xs flex items-center gap-2 ${syncStatus.error ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-green-50 border border-green-200 text-green-700'}`}>
-                  {syncStatus.error ? <AlertTriangle size={13} /> : <Check size={13} />}
-                  <span>{syncStatus.message}</span>
                 </div>
               )}
             </div>
@@ -1671,13 +1576,6 @@ export default function App() {
         />
       )}
 
-      {showSheetConfig && (
-        <SheetConfigModal
-          currentUrl={sheetUrl}
-          onSave={handleSaveSheetUrl}
-          onClose={() => setShowSheetConfig(false)}
-        />
-      )}
     </div>
   );
 }
