@@ -544,6 +544,10 @@ export default function App() {
   const [editingOtData, setEditingOtData] = useState<Partial<OvertimeRow>>({});
   const [showOtMachinePicker, setShowOtMachinePicker] = useState(false);
 
+  // ── 人員搜尋關鍵字（編輯時用來過濾主機／作業員清單）──
+  const [opSearch, setOpSearch] = useState('');
+  const [coSearch, setCoSearch] = useState('');
+
   // ── Data fetching ──
   const refreshMachines = useCallback(async () => {
     const data = await api.fetchMachines();
@@ -699,6 +703,8 @@ export default function App() {
   const startEditRow = (row: ScheduleRow) => {
     setEditingRowMachine(row.machineId);
     setEditingRowData({ ...row });
+    setOpSearch('');
+    setCoSearch('');
   };
 
   const saveEditRow = async () => {
@@ -716,6 +722,8 @@ export default function App() {
     });
     setEditingRowMachine(null);
     setEditingRowData({});
+    setOpSearch('');
+    setCoSearch('');
     await refreshSchedule(scheduleDate);
   };
 
@@ -977,14 +985,38 @@ export default function App() {
 
                           <td className="px-2 py-3">
                             {isEditing ? (
-                              <select value={editingRowData.operatorId ?? ''}
-                                onChange={e => setEditingRowData(p => ({ ...p, operatorId: e.target.value }))}
-                                className="w-full border border-blue-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white">
-                                <option value="">— 未指派 —</option>
-                                {availablePersonnel.map(p => (
-                                  <option key={p.id} value={p.id}>{p.id} {p.name}</option>
-                                ))}
-                              </select>
+                              <div className="space-y-1">
+                                {editingRowData.operatorId ? (
+                                  <div className="flex items-center gap-1 text-xs bg-blue-100 rounded px-1.5 py-1">
+                                    <span className="font-mono text-gray-500">{editingRowData.operatorId}</span>
+                                    <span className="font-medium text-gray-800">{personMap.get(editingRowData.operatorId)?.name ?? '—'}</span>
+                                    <button type="button"
+                                      onClick={() => { setEditingRowData(p => ({ ...p, operatorId: '' })); setOpSearch(''); }}
+                                      className="ml-auto text-gray-400 hover:text-rose-500" title="取消指派">
+                                      <X size={12} />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <input value={opSearch}
+                                      onChange={e => setOpSearch(e.target.value)}
+                                      placeholder="搜尋姓名或編號"
+                                      className="w-full border border-blue-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                                    <div className="max-h-28 overflow-y-auto border border-gray-200 rounded">
+                                      {availablePersonnel
+                                        .filter(p => !opSearch || p.name.includes(opSearch) || p.id.toLowerCase().includes(opSearch.toLowerCase()))
+                                        .map(p => (
+                                          <button key={p.id} type="button"
+                                            onClick={() => { setEditingRowData(prev => ({ ...prev, operatorId: p.id })); setOpSearch(''); }}
+                                            className="w-full text-left px-2 py-1 text-xs hover:bg-blue-50 flex items-center gap-1">
+                                            <span className="font-mono text-gray-400">{p.id}</span>
+                                            <span>{p.name}</span>
+                                          </button>
+                                      ))}
+                                    </div>
+                                  </>
+                                )}
+                              </div>
                             ) : (
                               <div className="flex items-center gap-1.5">
                                 {row.operatorId ? (
@@ -1002,26 +1034,34 @@ export default function App() {
 
                           <td className="px-2 py-3">
                             {isEditing ? (
-                              <div className="space-y-1 max-h-32 overflow-y-auto">
-                                {availablePersonnel.map(p => {
-                                  const editIds: string[] = (editingRowData.collaboratorIds as string[] | undefined) ?? [];
-                                  const checked = editIds.includes(p.id);
-                                  return (
-                                    <label key={p.id} className="flex items-center gap-1.5 text-sm cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5">
-                                      <input type="checkbox" checked={checked}
-                                        onChange={() => {
-                                          setEditingRowData(prev => {
-                                            const cur: string[] = (prev.collaboratorIds as string[] | undefined) ?? [];
-                                            const next = checked ? cur.filter(x => x !== p.id) : [...cur, p.id];
-                                            return { ...prev, collaboratorIds: next };
-                                          });
-                                        }}
-                                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-400" />
-                                      <span className="text-xs font-mono text-gray-400">{p.id}</span>
-                                      <span>{p.name}</span>
-                                    </label>
-                                  );
-                                })}
+                              <div className="space-y-1">
+                                <input value={coSearch}
+                                  onChange={e => setCoSearch(e.target.value)}
+                                  placeholder="搜尋姓名或編號"
+                                  className="w-full border border-blue-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                                <div className="space-y-1 max-h-32 overflow-y-auto border border-gray-200 rounded p-1">
+                                  {availablePersonnel
+                                    .filter(p => !coSearch || p.name.includes(coSearch) || p.id.toLowerCase().includes(coSearch.toLowerCase()))
+                                    .map(p => {
+                                      const editIds: string[] = (editingRowData.collaboratorIds as string[] | undefined) ?? [];
+                                      const checked = editIds.includes(p.id);
+                                      return (
+                                        <label key={p.id} className="flex items-center gap-1.5 text-sm cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5">
+                                          <input type="checkbox" checked={checked}
+                                            onChange={() => {
+                                              setEditingRowData(prev => {
+                                                const cur: string[] = (prev.collaboratorIds as string[] | undefined) ?? [];
+                                                const next = checked ? cur.filter(x => x !== p.id) : [...cur, p.id];
+                                                return { ...prev, collaboratorIds: next };
+                                              });
+                                            }}
+                                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-400" />
+                                          <span className="text-xs font-mono text-gray-400">{p.id}</span>
+                                          <span>{p.name}</span>
+                                        </label>
+                                      );
+                                    })}
+                                </div>
                               </div>
                             ) : (
                               <div className="flex flex-wrap gap-1">
@@ -1069,7 +1109,7 @@ export default function App() {
                                   <button onClick={saveEditRow} className="p-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-100">
                                     <Check size={13} />
                                   </button>
-                                  <button onClick={() => { setEditingRowMachine(null); setEditingRowData({}); }} className="p-1.5 bg-gray-50 text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100">
+                                  <button onClick={() => { setEditingRowMachine(null); setEditingRowData({}); setOpSearch(''); setCoSearch(''); }} className="p-1.5 bg-gray-50 text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100">
                                     <X size={13} />
                                   </button>
                                 </div>
@@ -1368,14 +1408,38 @@ export default function App() {
 
                           <td className="px-2 py-3">
                             {isEditing ? (
-                              <select value={editingOtData.operatorId ?? ''}
-                                onChange={e => setEditingOtData(p => ({ ...p, operatorId: e.target.value }))}
-                                className="w-full border border-blue-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white">
-                                <option value="">— 未指派 —</option>
-                                {personnel.map(p => (
-                                  <option key={p.id} value={p.id}>{p.id} {p.name}</option>
-                                ))}
-                              </select>
+                              <div className="space-y-1">
+                                {editingOtData.operatorId ? (
+                                  <div className="flex items-center gap-1 text-xs bg-blue-100 rounded px-1.5 py-1">
+                                    <span className="font-mono text-gray-500">{editingOtData.operatorId}</span>
+                                    <span className="font-medium text-gray-800">{personMap.get(editingOtData.operatorId)?.name ?? '—'}</span>
+                                    <button type="button"
+                                      onClick={() => { setEditingOtData(p => ({ ...p, operatorId: '' })); setOpSearch(''); }}
+                                      className="ml-auto text-gray-400 hover:text-rose-500" title="取消指派">
+                                      <X size={12} />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <input value={opSearch}
+                                      onChange={e => setOpSearch(e.target.value)}
+                                      placeholder="搜尋姓名或編號"
+                                      className="w-full border border-blue-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                                    <div className="max-h-28 overflow-y-auto border border-gray-200 rounded">
+                                      {personnel
+                                        .filter(p => !opSearch || p.name.includes(opSearch) || p.id.toLowerCase().includes(opSearch.toLowerCase()))
+                                        .map(p => (
+                                          <button key={p.id} type="button"
+                                            onClick={() => { setEditingOtData(prev => ({ ...prev, operatorId: p.id })); setOpSearch(''); }}
+                                            className="w-full text-left px-2 py-1 text-xs hover:bg-blue-50 flex items-center gap-1">
+                                            <span className="font-mono text-gray-400">{p.id}</span>
+                                            <span>{p.name}</span>
+                                          </button>
+                                      ))}
+                                    </div>
+                                  </>
+                                )}
+                              </div>
                             ) : (
                               <div className="flex items-center gap-1.5">
                                 {row.operatorId ? (
@@ -1392,26 +1456,34 @@ export default function App() {
 
                           <td className="px-2 py-3">
                             {isEditing ? (
-                              <div className="space-y-1 max-h-32 overflow-y-auto">
-                                {personnel.map(p => {
-                                  const editIds: string[] = (editingOtData.collaboratorIds as string[] | undefined) ?? [];
-                                  const checked = editIds.includes(p.id);
-                                  return (
-                                    <label key={p.id} className="flex items-center gap-1.5 text-sm cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5">
-                                      <input type="checkbox" checked={checked}
-                                        onChange={() => {
-                                          setEditingOtData(prev => {
-                                            const cur: string[] = (prev.collaboratorIds as string[] | undefined) ?? [];
-                                            const next = checked ? cur.filter(x => x !== p.id) : [...cur, p.id];
-                                            return { ...prev, collaboratorIds: next };
-                                          });
-                                        }}
-                                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-400" />
-                                      <span className="text-xs font-mono text-gray-400">{p.id}</span>
-                                      <span>{p.name}</span>
-                                    </label>
-                                  );
-                                })}
+                              <div className="space-y-1">
+                                <input value={coSearch}
+                                  onChange={e => setCoSearch(e.target.value)}
+                                  placeholder="搜尋姓名或編號"
+                                  className="w-full border border-blue-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                                <div className="space-y-1 max-h-32 overflow-y-auto border border-gray-200 rounded p-1">
+                                  {personnel
+                                    .filter(p => !coSearch || p.name.includes(coSearch) || p.id.toLowerCase().includes(coSearch.toLowerCase()))
+                                    .map(p => {
+                                      const editIds: string[] = (editingOtData.collaboratorIds as string[] | undefined) ?? [];
+                                      const checked = editIds.includes(p.id);
+                                      return (
+                                        <label key={p.id} className="flex items-center gap-1.5 text-sm cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5">
+                                          <input type="checkbox" checked={checked}
+                                            onChange={() => {
+                                              setEditingOtData(prev => {
+                                                const cur: string[] = (prev.collaboratorIds as string[] | undefined) ?? [];
+                                                const next = checked ? cur.filter(x => x !== p.id) : [...cur, p.id];
+                                                return { ...prev, collaboratorIds: next };
+                                              });
+                                            }}
+                                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-400" />
+                                          <span className="text-xs font-mono text-gray-400">{p.id}</span>
+                                          <span>{p.name}</span>
+                                        </label>
+                                      );
+                                    })}
+                                </div>
                               </div>
                             ) : (
                               <div className="flex flex-wrap gap-1">
@@ -1463,13 +1535,13 @@ export default function App() {
                                   }} className="p-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-100">
                                     <Check size={13} />
                                   </button>
-                                  <button onClick={() => { setEditingOtMachine(null); setEditingOtData({}); }} className="p-1.5 bg-gray-50 text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100">
+                                  <button onClick={() => { setEditingOtMachine(null); setEditingOtData({}); setOpSearch(''); setCoSearch(''); }} className="p-1.5 bg-gray-50 text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100">
                                     <X size={13} />
                                   </button>
                                 </div>
                               ) : (
                                 <div className="flex gap-1">
-                                  <button onClick={() => { setEditingOtMachine(row.machineId); setEditingOtData({ ...row }); }} className="p-1.5 text-gray-300 hover:text-blue-600 rounded-lg hover:bg-blue-50">
+                                  <button onClick={() => { setEditingOtMachine(row.machineId); setEditingOtData({ ...row }); setOpSearch(''); setCoSearch(''); }} className="p-1.5 text-gray-300 hover:text-blue-600 rounded-lg hover:bg-blue-50">
                                     <Edit3 size={13} />
                                   </button>
                                   {canDelete && (
