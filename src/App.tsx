@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Machine, OvertimeRow, Personnel, Role, ScheduleRow, SkillLevel, TabType, User } from './types';
 import * as api from './api';
 import {
@@ -673,29 +673,29 @@ export default function App() {
     refreshOvertime(scheduleDate);
   }, [scheduleDate, refreshSchedule, refreshOvertime]);
 
-  // Always auto-update date to today: on mount, on visibility/focus/pageshow,
-  // and every 60 seconds as a fallback (so if user leaves page open past midnight
-  // or the mobile browser skips the visibility event, it still catches up).
+  // 當使用者手動挑過日期後，userPickedDate 會變 true，這之後所有自動更新都停止，
+  // 避免排班排到一半突然跳回今天。
+  const userPickedDateRef = useRef(false);
+
+  // 只有在使用者「還沒手動挑過日期」時才自動更新：
+  //   1. 元件掛載時（第一次打開頁面）
+  //   2. 從手機背景切回來 (visibilitychange / pageshow)
+  // 一旦使用者動過日期選擇器，就完全不自動變動。
   useEffect(() => {
-    const updateToToday = () => {
+    const updateToTodayIfUntouched = () => {
+      if (userPickedDateRef.current) return;
       const todayStr = getTaipeiToday();
       setScheduleDate(prev => (prev === todayStr ? prev : todayStr));
     };
-    // run immediately on mount
-    updateToToday();
+    updateToTodayIfUntouched();
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') updateToToday();
+      if (document.visibilityState === 'visible') updateToTodayIfUntouched();
     };
-    const handlePageShow = () => updateToToday();
     document.addEventListener('visibilitychange', handleVisibility);
-    window.addEventListener('focus', updateToToday);
-    window.addEventListener('pageshow', handlePageShow);
-    const interval = window.setInterval(updateToToday, 60_000);
+    window.addEventListener('pageshow', updateToTodayIfUntouched);
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
-      window.removeEventListener('focus', updateToToday);
-      window.removeEventListener('pageshow', handlePageShow);
-      window.clearInterval(interval);
+      window.removeEventListener('pageshow', updateToTodayIfUntouched);
     };
   }, []);
 
@@ -710,7 +710,8 @@ export default function App() {
   const handleLogin = (u: User) => {
     setUser(u);
     setShowLogin(false);
-    // 登入時自動跳到今天日期（台北時區）
+    // 登入時自動跳到今天日期（台北時區），並重設手動選擇旗標
+    userPickedDateRef.current = false;
     const todayStr = getTaipeiToday();
     if (scheduleDate !== todayStr) {
       setScheduleDate(todayStr);
@@ -901,7 +902,8 @@ export default function App() {
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div className="flex items-center gap-3">
                 <label className="text-sm text-gray-500">排班日期</label>
-                <input type="date" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)}
+                <input type="date" value={scheduleDate}
+                  onChange={e => { userPickedDateRef.current = true; setScheduleDate(e.target.value); }}
                   className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                 {canEdit && (
                   <button onClick={() => setShowMachinePicker(true)}
@@ -1394,7 +1396,8 @@ export default function App() {
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div className="flex items-center gap-3">
                 <label className="text-sm text-gray-500">加班日期</label>
-                <input type="date" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)}
+                <input type="date" value={scheduleDate}
+                  onChange={e => { userPickedDateRef.current = true; setScheduleDate(e.target.value); }}
                   className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                 {canEdit && (
                   <button onClick={() => setShowOtMachinePicker(true)}
