@@ -758,12 +758,12 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-6 py-4 shadow-sm">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
+    <div className="min-h-screen bg-ocean-page">
+      <header className="bg-ocean-ink border-b border-ocean-teal px-4 sm:px-6 py-4 shadow-sm">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
           <div>
-            <h1 className="text-xl font-bold text-gray-900 tracking-tight">生產排班系統</h1>
-            <p className="text-xs text-gray-400 mt-0.5">Manufacturing Schedule & Personnel Management</p>
+            <h1 className="text-lg sm:text-xl font-bold text-ocean-cream tracking-tight">生產排班系統</h1>
+            <p className="text-xs text-ocean-foam mt-0.5 hidden sm:block">Manufacturing Schedule & Personnel Management</p>
           </div>
           <div className="flex items-center gap-3">
             {canEdit && alertRows.length > 0 && (
@@ -772,7 +772,7 @@ export default function App() {
                 <span>{alertRows.length} 位人員超過 {ALERT_DAYS} 天未調動</span>
               </div>
             )}
-            <span className="text-xs text-gray-400">{scheduleDate}</span>
+            <span className="text-xs text-ocean-foam hidden sm:inline">{scheduleDate}</span>
 
             {/* Role / Login */}
             {user ? (
@@ -784,18 +784,18 @@ export default function App() {
                   <span>{user.displayName}</span>
                 </div>
                 <button onClick={handleLogout}
-                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-gray-500 hover:text-gray-800 border border-gray-200 rounded-lg hover:bg-gray-50">
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-ocean-cream hover:bg-ocean-teal-dark border border-ocean-teal rounded-lg">
                   <LogOut size={12} />登出
                 </button>
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <div className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border ${ROLE_BADGE_COLORS.viewer}`}>
+                <div className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border border-ocean-foam text-ocean-cream bg-ocean-ink/40">
                   <Eye size={12} />
                   <span className="font-medium">瀏覽模式</span>
                 </div>
                 <button onClick={() => setShowLogin(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-ocean-ink font-semibold bg-ocean-foam rounded-lg hover:bg-ocean-cream">
                   <LogIn size={12} />登入
                 </button>
               </div>
@@ -804,8 +804,8 @@ export default function App() {
         </div>
       </header>
 
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-6 flex gap-0">
+      <div className="bg-white border-b border-ocean-line">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 flex gap-0 overflow-x-auto">
           {[
             { key: 'schedule', label: '每日排班', icon: <CalendarDays size={14} />, requireAuth: false },
             { key: 'overtime', label: '加班排班', icon: <Clock size={14} />, requireAuth: false },
@@ -813,8 +813,8 @@ export default function App() {
             { key: 'machine', label: '機台資料庫', icon: <Settings2 size={14} />, requireAuth: true },
           ].filter(t => !t.requireAuth || canAccessNonScheduleTab).map(t => (
             <button key={t.key} onClick={() => setTab(t.key as TabType)}
-              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                tab === t.key ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                tab === t.key ? 'border-ocean-teal text-ocean-teal' : 'border-transparent text-gray-500 hover:text-ocean-ink'
               }`}>
               {t.icon}{t.label}
             </button>
@@ -822,11 +822,11 @@ export default function App() {
         </div>
       </div>
 
-      <main className="max-w-7xl mx-auto px-6 py-6">
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
 
         {loading && (
           <div className="text-center py-20 text-gray-400">
-            <p className="text-lg font-medium text-gray-600">載入中…</p>
+            <p className="text-lg font-medium text-ocean-ink">載入中…</p>
           </div>
         )}
 
@@ -836,10 +836,10 @@ export default function App() {
             {/* Toolbar */}
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div className="flex items-center gap-3">
-                <label className="text-sm text-gray-500">排班日期</label>
+                <label className="text-base font-medium text-ocean-ink">排班日期</label>
                 <input type="date" value={scheduleDate}
                   onChange={e => { userPickedDateRef.current = true; setScheduleDate(e.target.value); }}
-                  className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                  className="border border-ocean-line bg-white rounded-lg px-4 py-2.5 text-base font-medium text-ocean-ink focus:outline-none focus:ring-2 focus:ring-ocean-teal" />
                 {canEdit && (
                   <button onClick={() => setShowMachinePicker(true)}
                     className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 bg-white text-sm text-gray-700 rounded-lg hover:bg-gray-50">
@@ -864,7 +864,7 @@ export default function App() {
             )}
 
             {/* Leave personnel section */}
-            <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <div className="bg-white border border-ocean-line rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <UserX size={15} className="text-rose-500" />
@@ -940,7 +940,7 @@ export default function App() {
             )}
 
             {/* Schedule table */}
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+            <div className="bg-white rounded-xl border border-ocean-line overflow-hidden shadow-sm">
               {rows.length === 0 ? (
                 <div className="p-12 text-center text-gray-400">
                   <Factory size={36} className="mx-auto mb-3 text-gray-300" />
@@ -950,12 +950,12 @@ export default function App() {
               ) : (
                 <table className="w-full text-sm border-collapse">
                   <thead>
-                    <tr className="bg-gray-50 border-b border-gray-200">
-                      <th className="text-left font-semibold text-gray-600 px-2 py-3 w-20">機台</th>
-                      <th className="text-left font-semibold text-gray-600 px-2 py-3 w-24">主機</th>
-                      <th className="text-left font-semibold text-gray-600 px-2 py-3 w-32">作業員</th>
-                      <th className="text-left font-semibold text-gray-600 px-2 py-3">品項</th>
-                      {canEdit && <th className="text-left font-semibold text-gray-600 px-2 py-3 w-20">在崗</th>}
+                    <tr className="bg-ocean-foam-light border-b-2 border-ocean-teal">
+                      <th className="text-left font-semibold text-ocean-ink px-2 py-3 w-24">機台</th>
+                      <th className="text-left font-semibold text-ocean-ink px-2 py-3 w-28">主機</th>
+                      <th className="text-left font-semibold text-ocean-ink px-2 py-3 w-40">作業員</th>
+                      <th className="text-left font-semibold text-ocean-ink px-2 py-3 w-24">品項</th>
+                      {canEdit && <th className="text-left font-semibold text-ocean-ink px-2 py-3 w-20">在崗</th>}
                       {canEdit && <th className="px-4 py-3 w-20"></th>}
                     </tr>
                   </thead>
@@ -972,7 +972,7 @@ export default function App() {
 
                       return (
                         <tr key={row.machineId}
-                          className={`border-b border-gray-100 last:border-0 ${
+                          className={`border-b border-ocean-line last:border-0 ${
                             isEditing ? 'bg-blue-50' :
                             hasConflict ? 'bg-rose-50/50' :
                             isAlert ? 'bg-orange-50/40' :
@@ -1267,7 +1267,7 @@ export default function App() {
               </button>
             </div>
 
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+            <div className="bg-white rounded-xl border border-ocean-line overflow-hidden shadow-sm">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
@@ -1290,7 +1290,7 @@ export default function App() {
                     const op = inSchedule ? personMap.get(inSchedule.operatorId) : null;
 
                     return (
-                      <tr key={m.id} className={`border-b border-gray-100 last:border-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}`}>
+                      <tr key={m.id} className={`border-b border-ocean-line last:border-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}`}>
                         <td className="px-4 py-3">
                           <span className="font-mono text-sm text-gray-700 bg-gray-100 rounded px-2 py-0.5">{m.id}</span>
                         </td>
@@ -1372,7 +1372,7 @@ export default function App() {
             )}
 
             {/* Overtime table */}
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+            <div className="bg-white rounded-xl border border-ocean-line overflow-hidden shadow-sm">
               {overtimeRows.length === 0 ? (
                 <div className="p-12 text-center text-gray-400">
                   <Clock size={36} className="mx-auto mb-3 text-gray-300" />
@@ -1382,11 +1382,11 @@ export default function App() {
               ) : (
                 <table className="w-full text-sm border-collapse">
                   <thead>
-                    <tr className="bg-amber-50 border-b border-amber-200">
-                      <th className="text-left font-semibold text-gray-600 px-2 py-3 w-20">機台</th>
-                      <th className="text-left font-semibold text-gray-600 px-2 py-3 w-24">主機</th>
-                      <th className="text-left font-semibold text-gray-600 px-2 py-3 w-32">作業員</th>
-                      <th className="text-left font-semibold text-gray-600 px-2 py-3">品項</th>
+                    <tr className="bg-ocean-foam-light border-b-2 border-ocean-teal">
+                      <th className="text-left font-semibold text-ocean-ink px-2 py-3 w-24">機台</th>
+                      <th className="text-left font-semibold text-ocean-ink px-2 py-3 w-28">主機</th>
+                      <th className="text-left font-semibold text-ocean-ink px-2 py-3 w-40">作業員</th>
+                      <th className="text-left font-semibold text-ocean-ink px-2 py-3 w-24">品項</th>
                       {canEdit && <th className="px-4 py-3 w-20"></th>}
                     </tr>
                   </thead>
@@ -1398,7 +1398,7 @@ export default function App() {
 
                       return (
                         <tr key={row.machineId}
-                          className={`border-b border-gray-100 last:border-0 ${
+                          className={`border-b border-ocean-line last:border-0 ${
                             isEditing ? 'bg-blue-50' : idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'
                           }`}>
                           <td className="px-2 py-3">
