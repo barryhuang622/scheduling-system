@@ -70,5 +70,27 @@ export async function initDB() {
     END $$;
   `);
 
+  // Backfill: 重算 assigned_date 為「同機台同操作員連續排班的最早日期」。
+  // 技巧：在依 date 排序的相同 (machine, operator) 序列裡，date - row_number()
+  // 對於連續日期會是常數，可以用來把連續區段分組，再取每組的 MIN(date)。
+  await pool.query(`
+    WITH ranked AS (
+      SELECT id, date, machine_id, operator_id,
+        date - (ROW_NUMBER() OVER (PARTITION BY machine_id, operator_id ORDER BY date))::int AS grp
+      FROM schedule
+      WHERE operator_id IS NOT NULL
+    ),
+    grouped AS (
+      SELECT id,
+        MIN(date) OVER (PARTITION BY machine_id, operator_id, grp) AS tenure_start
+      FROM ranked
+    )
+    UPDATE schedule s
+    SET assigned_date = g.tenure_start
+    FROM grouped g
+    WHERE s.id = g.id
+      AND s.assigned_date IS DISTINCT FROM g.tenure_start;
+  `);
+
   console.log('Database tables initialized');
 }

@@ -99,9 +99,36 @@ api.get('/schedule', async (c) => {
   })));
 });
 
+// 計算 assigned_date：若前一天同機台同操作員存在，繼承其 assigned_date；
+// 否則用當天日期作為新一段任期的起點。
+async function computeAssignedDate(
+  date: string,
+  machineId: string,
+  operatorId: string | null,
+  fallback?: string,
+): Promise<string> {
+  if (!operatorId) return fallback || date;
+  const { rows } = await pool.query(
+    `SELECT assigned_date FROM schedule
+     WHERE machine_id = $1
+       AND date = ($2::date - INTERVAL '1 day')
+       AND operator_id = $3
+     LIMIT 1`,
+    [machineId, date, operatorId]
+  );
+  if (rows.length > 0) {
+    // 繼承前一天的 assigned_date（PG 回傳 Date 物件，轉成 YYYY-MM-DD）
+    const ad = rows[0].assigned_date;
+    return ad instanceof Date ? ad.toISOString().slice(0, 10) : String(ad);
+  }
+  return fallback || date;
+}
+
 api.post('/schedule', async (c) => {
   const { date, machineId, operatorId, collaboratorIds, productionItems, assignedDate } = await c.req.json();
   const collabStr = serializeCollabIds(collaboratorIds);
+  const op = operatorId || null;
+  const finalAssignedDate = await computeAssignedDate(date, machineId, op, assignedDate);
   await pool.query(
     `INSERT INTO schedule (date, machine_id, operator_id, collaborator_ids, production_items, assigned_date)
      VALUES ($1, $2, $3, $4, $5, $6)
@@ -110,7 +137,7 @@ api.post('/schedule', async (c) => {
        collaborator_ids = $4,
        production_items = $5,
        assigned_date = $6`,
-    [date, machineId, operatorId || null, collabStr, productionItems || '', assignedDate || date]
+    [date, machineId, op, collabStr, productionItems || '', finalAssignedDate]
   );
   return c.json({ ok: true });
 });
@@ -131,6 +158,8 @@ api.post('/schedule/bulk', async (c) => {
   }
   for (const r of rows) {
     const collabStr = serializeCollabIds(r.collaboratorIds);
+    const op = r.operatorId || null;
+    const finalAssignedDate = await computeAssignedDate(date, r.machineId, op, r.assignedDate);
     await pool.query(
       `INSERT INTO schedule (date, machine_id, operator_id, collaborator_ids, production_items, assigned_date)
        VALUES ($1, $2, $3, $4, $5, $6)
@@ -139,7 +168,7 @@ api.post('/schedule/bulk', async (c) => {
          collaborator_ids = $4,
          production_items = $5,
          assigned_date = $6`,
-      [date, r.machineId, r.operatorId || null, collabStr, r.productionItems || '', r.assignedDate || date]
+      [date, r.machineId, op, collabStr, r.productionItems || '', finalAssignedDate]
     );
   }
   return c.json({ ok: true });
